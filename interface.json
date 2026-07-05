@@ -1,0 +1,22 @@
+{
+  "types": [
+    {
+      "name": "Greeting",
+      "fields": [
+        {"name": "id", "type": "uint32"},
+        {"name": "message", "type": "string"},
+        {"name": "value", "type": "float"},
+        {"name": "flags", "type": "bool"},
+        {"name": "payload", "type": "bytes"},
+        {"name": "numbers", "type": "int32[]"}
+      ]
+    },
+    {
+      "name": "Response",
+      "fields": [
+        {"name": "status", "type": "uint32"},
+        {"name": "message", "type": "string"}
+      ]
+    }
+  ]
+}

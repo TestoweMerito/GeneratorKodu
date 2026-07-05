@@ -1,0 +1,101 @@
+"""
+Auto-generated serialization helpers and classes template.
+"""
+import struct
+import io
+
+# Primitive pack/unpack helpers
+def pack_uint32(v):
+    return struct.pack('<I', v)
+
+def unpack_uint32(buf):
+    return struct.unpack('<I', buf.read(4))[0]
+
+def pack_int32(v):
+    return struct.pack('<i', v)
+
+def unpack_int32(buf):
+    return struct.unpack('<i', buf.read(4))[0]
+
+def pack_float(v):
+    return struct.pack('<f', v)
+
+def unpack_float(buf):
+    return struct.unpack('<f', buf.read(4))[0]
+
+def pack_bool(v):
+    return struct.pack('<?', bool(v))
+
+def unpack_bool(buf):
+    return struct.unpack('<?', buf.read(1))[0]
+
+def pack_string(s):
+    b = (s or '').encode('utf-8')
+    return pack_uint32(len(b)) + b
+
+def unpack_string(buf):
+    l = unpack_uint32(buf)
+    return buf.read(l).decode('utf-8')
+
+def pack_bytes(b):
+    b = b or b''
+    return pack_uint32(len(b)) + b
+
+def unpack_bytes(buf):
+    l = unpack_uint32(buf)
+    return buf.read(l)
+
+def pack_array(elem_type, items):
+    items = items or []
+    out = pack_uint32(len(items))
+    for i in items:
+        out += globals()['pack_' + elem_type](i)
+    return out
+
+def unpack_array(elem_type, buf):
+    l = unpack_uint32(buf)
+    out = []
+    for _ in range(l):
+        out.append(globals()['unpack_' + elem_type](buf))
+    return out
+
+{% for t in types %}
+class {{ t.name }}:
+    def __init__(self, {% for f in t.fields %}{{ f.name }}=None{% if not loop.last %}, {% endif %}{% endfor %}):
+{% for f in t.fields %}
+        self.{{ f.name }} = {{ f.name }}
+{% endfor %}
+
+    def to_bytes(self):
+        out = b''
+        {% for f in t.fields %}
+        {% if f.type.endswith('[]') %}
+        out += pack_array('{{ f.type[:-2] }}', self.{{ f.name }})
+        {% elif f.type == 'string' %}
+        out += pack_string(self.{{ f.name }})
+        {% elif f.type == 'bytes' %}
+        out += pack_bytes(self.{{ f.name }})
+        {% else %}
+        out += globals()['pack_' + '{{ f.type }}'](self.{{ f.name }})
+        {% endif %}
+        {% endfor %}
+        return out
+
+    @staticmethod
+    def from_bytes(b):
+        buf = io.BytesIO(b)
+        obj = {{ t.name }}()
+        {% for f in t.fields %}
+        {% if f.type.endswith('[]') %}
+        obj.{{ f.name }} = unpack_array('{{ f.type[:-2] }}', buf)
+        {% elif f.type == 'string' %}
+        obj.{{ f.name }} = unpack_string(buf)
+        {% elif f.type == 'bytes' %}
+        obj.{{ f.name }} = unpack_bytes(buf)
+        {% else %}
+        obj.{{ f.name }} = globals()['unpack_' + '{{ f.type }}'](buf)
+        {% endif %}
+        {% endfor %}
+        return obj
+
+{% endfor %}
