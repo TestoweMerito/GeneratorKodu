@@ -1,51 +1,98 @@
 """
-Auto-generated serialization helpers and classes template.
+Auto-generated serialization and deserialization module.
+
+Zawiera:
+1. Funkcje pack_*/unpack_* — konwertują typy na bajty i odwrotnie
+2. Klasy ({{ types|map(attribute='name')|join(', ') }}) — reprezentują struktury z interface.json
+3. Metody to_bytes() i from_bytes() — serializacja/deserializacja do/z formatu binarnego
+
+Format binarny: little-endian, stringi/bajty prefixowane uint32
 """
 import struct
 import io
 
-# Primitive pack/unpack helpers
+# ============================================================================
+# FUNKCJE POMOCNICZE - Pack/Unpack (serializacja/deserializacja typów)
+# ============================================================================
+
 def pack_uint32(v):
+    """Konwertuj uint32 na 4 bajty (little-endian)."""
     return struct.pack('<I', v)
 
 def unpack_uint32(buf):
+    """Odczytaj 4 bajty (little-endian) ze strumienia i zwróć uint32."""
     return struct.unpack('<I', buf.read(4))[0]
 
 def pack_int32(v):
+    """Konwertuj int32 na 4 bajty (little-endian)."""
     return struct.pack('<i', v)
 
 def unpack_int32(buf):
+    """Odczytaj 4 bajty (little-endian) ze strumienia i zwróć int32."""
     return struct.unpack('<i', buf.read(4))[0]
 
+def pack_uint64(v):
+    """Konwertuj uint64 na 8 bajtów (little-endian)."""
+    return struct.pack('<Q', v)
+
+def unpack_uint64(buf):
+    """Odczytaj 8 bajtów (little-endian) ze strumienia i zwróć uint64."""
+    return struct.unpack('<Q', buf.read(8))[0]
+
+def pack_int64(v):
+    """Konwertuj int64 na 8 bajtów (little-endian)."""
+    return struct.pack('<q', v)
+
+def unpack_int64(buf):
+    """Odczytaj 8 bajtów (little-endian) ze strumienia i zwróć int64."""
+    return struct.unpack('<q', buf.read(8))[0]
+
 def pack_float(v):
+    """Konwertuj float na 4 bajty (little-endian)."""
     return struct.pack('<f', v)
 
 def unpack_float(buf):
+    """Odczytaj 4 bajty (little-endian) ze strumienia i zwróć float."""
     return struct.unpack('<f', buf.read(4))[0]
 
+def pack_double(v):
+    """Konwertuj double na 8 bajtów (little-endian)."""
+    return struct.pack('<d', v)
+
+def unpack_double(buf):
+    """Odczytaj 8 bajtów (little-endian) ze strumienia i zwróć double."""
+    return struct.unpack('<d', buf.read(8))[0]
+
 def pack_bool(v):
+    """Konwertuj bool na 1 bajt."""
     return struct.pack('<?', bool(v))
 
 def unpack_bool(buf):
+    """Odczytaj 1 bajt ze strumienia i zwróć bool."""
     return struct.unpack('<?', buf.read(1))[0]
 
 def pack_string(s):
+    """Konwertuj string: [4-bajtowa długość][dane utf-8]."""
     b = (s or '').encode('utf-8')
     return pack_uint32(len(b)) + b
 
 def unpack_string(buf):
+    """Odczytaj string: przeczytaj długość, potem dane utf-8."""
     l = unpack_uint32(buf)
     return buf.read(l).decode('utf-8')
 
 def pack_bytes(b):
+    """Konwertuj bytes: [4-bajtowa długość][surowe dane]."""
     b = b or b''
     return pack_uint32(len(b)) + b
 
 def unpack_bytes(buf):
+    """Odczytaj bytes: przeczytaj długość, potem surowe dane."""
     l = unpack_uint32(buf)
     return buf.read(l)
 
 def pack_array(elem_type, items):
+    """Konwertuj tablicę: [liczba elementów][elementy]."""
     items = items or []
     out = pack_uint32(len(items))
     for i in items:
@@ -53,22 +100,48 @@ def pack_array(elem_type, items):
     return out
 
 def unpack_array(elem_type, buf):
+    """Odczytaj tablicę: przeczytaj liczbę elementów, potem każdy element."""
     l = unpack_uint32(buf)
     out = []
     for _ in range(l):
         out.append(globals()['unpack_' + elem_type](buf))
     return out
 
+# ============================================================================
+# KLASY - Struktury danych (wygenerowane z interface.json)
+# ============================================================================
+
 {% for t in types %}
 class {{ t.name }}:
+    """Struktura '{{ t.name }}' z interface.json.
+    
+    Pola:
+{% for f in t.fields %}
+        {{ f.name }} ({{ f.type }}): (pole {{ loop.index }})
+{% endfor %}
+    
+    Metody:
+        to_bytes(): serializuj obiekt do bajtów
+        from_bytes(data): deserializuj obiekt z bajtów
+    """
+    
     def __init__(self, {% for f in t.fields %}{{ f.name }}=None{% if not loop.last %}, {% endif %}{% endfor %}):
+        """Inicjalizuj {{ t.name }}.
+        
+        Args:
+{% for f in t.fields %}
+            {{ f.name }}: {{ f.type }}
+{% endfor %}
+        """
 {% for f in t.fields %}
         self.{{ f.name }} = {{ f.name }}
 {% endfor %}
 
     def to_bytes(self):
+        """Serializuj obiekt do bajtów (format binarny little-endian)."""
         out = b''
-        {% for f in t.fields %}
+{% for f in t.fields %}
+        # {{ f.name }}: {{ f.type }}
         {% if f.type.endswith('[]') %}
         out += pack_array('{{ f.type[:-2] }}', self.{{ f.name }})
         {% elif f.type == 'string' %}
@@ -78,14 +151,23 @@ class {{ t.name }}:
         {% else %}
         out += globals()['pack_' + '{{ f.type }}'](self.{{ f.name }})
         {% endif %}
-        {% endfor %}
+{% endfor %}
         return out
 
     @staticmethod
     def from_bytes(b):
+        """Deserializuj obiekt z bajtów.
+        
+        Args:
+            b: bajty do deserializacji
+            
+        Returns:
+            {{ t.name }}: odrestaurowany obiekt
+        """
         buf = io.BytesIO(b)
         obj = {{ t.name }}()
-        {% for f in t.fields %}
+{% for f in t.fields %}
+        # {{ f.name }}: {{ f.type }}
         {% if f.type.endswith('[]') %}
         obj.{{ f.name }} = unpack_array('{{ f.type[:-2] }}', buf)
         {% elif f.type == 'string' %}
@@ -95,7 +177,12 @@ class {{ t.name }}:
         {% else %}
         obj.{{ f.name }} = globals()['unpack_' + '{{ f.type }}'](buf)
         {% endif %}
-        {% endfor %}
+{% endfor %}
         return obj
+    
+    def __repr__(self):
+        """Zwróć string reprezentację obiektu."""
+        fields = ', '.join(f'{k}={v!r}' for k, v in self.__dict__.items())
+        return f'{{ t.name }}({fields})'
 
 {% endfor %}
